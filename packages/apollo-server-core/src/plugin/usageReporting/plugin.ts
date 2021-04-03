@@ -397,7 +397,7 @@ export function ApolloServerPluginUsageReporting<TContext>(
          * check the `requestPipeline.ts` for `emitErrorAndThrow`.
          */
         let endDone: boolean = false;
-        function didEnd(
+        async function didEnd(
           requestContext:
             | GraphQLRequestContextWillSendResponse<TContext>
             // Our didEncounterErrors handler only calls this function if didResolveSource.
@@ -452,7 +452,11 @@ export function ApolloServerPluginUsageReporting<TContext>(
           // logger is preferred since this is very much coupled directly to a
           // client-triggered action which might be more granularly tagged by
           // logging implementations.
-          addTrace().catch(logger.error);
+          if (sendReportsImmediately) {
+            await addTrace().catch(logger.error);
+          } else {
+            addTrace().catch(logger.error);
+          }
 
           async function addTrace(): Promise<void> {
             // Ignore traces that come in after stop().
@@ -644,12 +648,16 @@ export function ApolloServerPluginUsageReporting<TContext>(
               },
             };
           },
-          willSendResponse(requestContext) {
+          async willSendResponse(requestContext) {
             // shouldTraceOperation will be called before this in `didResolveOperation`
             // so we don't need to call it again here.
 
             // See comment above for why `didEnd` must be called in two hooks.
-            didEnd(requestContext);
+            if (sendReportsImmediately) {
+              await didEnd(requestContext);
+            } else {
+              didEnd(requestContext)
+            }
           },
           async didEncounterErrors(requestContext) {
             // Search above for a comment about "didResolveSource" to see which
